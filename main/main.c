@@ -85,13 +85,13 @@ void trigger_task(void *p) {
 }
 
 void echo_task(void *p) {
-    float distance = 0;
+    
     uint64_t time = 0;
     while (1) {
         xQueueReceive(xQueueTime, &time, portMAX_DELAY);
         uint64_t start = time;
         if (xQueueReceive(xQueueTime, &time, pdMS_TO_TICKS(100))){
-            distance = (float)(time - start) * 0.0343 / 2;
+            float distance = (float)(time - start) * 0.0343 / 2;
             xQueueSend(xQueueDist, &distance, 0);
         } 
     }
