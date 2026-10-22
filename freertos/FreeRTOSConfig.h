@@ -1,15 +1,30 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
-/* Use Pico SDK ISR handlers */
-#define vPortSVCHandler         isr_svcall
-#define xPortPendSVHandler      isr_pendsv
-#define xPortSysTickHandler     isr_systick
+/* RP2350 Cortex-M33 port configuration */
+#define configENABLE_FPU                        1
+#define configENABLE_MPU                        0
+#define configENABLE_TRUSTZONE                  0
+#define configRUN_FREERTOS_SECURE_ONLY          1
+#define configMINIMAL_SECURE_STACK_SIZE         ((uint32_t)256)
+
+/* Cortex-M33 interrupt priority configuration */
+/* RP2350 has 4 priority bits (0-15), lower number = higher priority */
+#define configPRIO_BITS                         4
+#define configLIBRARY_LOWEST_INTERRUPT_PRIORITY 15
+#define configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY 5
+#define configKERNEL_INTERRUPT_PRIORITY         (configLIBRARY_LOWEST_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
+#define configMAX_SYSCALL_INTERRUPT_PRIORITY    (configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY << (8 - configPRIO_BITS))
+
+/* Map FreeRTOS handler names to Pico SDK vector table names */
+#define SVC_Handler             isr_svcall
+#define PendSV_Handler          isr_pendsv
+#define SysTick_Handler         isr_systick
 
 #define configUSE_PREEMPTION                    1
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 0
 #define configUSE_TICKLESS_IDLE                 0
-#define configCPU_CLOCK_HZ                      133000000
+#define configCPU_CLOCK_HZ                      150000000
 #define configTICK_RATE_HZ                      100
 #define configMAX_PRIORITIES                    5
 #define configMINIMAL_STACK_SIZE                128

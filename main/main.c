@@ -19,16 +19,16 @@
 QueueHandle_t xQueueDist, xQueueTime;
 SemaphoreHandle_t xSemaphoreTrigger;
 
-// === Função de callback (IRQ) ===
-
 void pin_callback(uint gpio, uint32_t events) {
-    if (gpio == ECHO_PIN){
-        if (events & (GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL)) {
-            uint64_t time = time_us_64();
-            xQueueSendFromISR(xQueueTime, &time, 0);
-        } 
-    }
+    if (gpio == ECHO_PIN) {
+        BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+        uint64_t time = time_us_64();
 
+        if (events & (GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL)) {
+            xQueueSendFromISR(xQueueTime, &time, &xHigherPriorityTaskWoken);
+        }
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
 }
 
 void oled_display_init(ssd1306_t *disp) {
@@ -76,60 +76,66 @@ void trigger_task(void *p) {
                                    true, &pin_callback);
 
     while (1) {
-        gpio_put(TRIG_PIN,1);
+        gpio_put(TRIG_PIN, 1);
         sleep_us(10);
-        gpio_put(TRIG_PIN,0);
+        gpio_put(TRIG_PIN, 0);
+
         xSemaphoreGive(xSemaphoreTrigger);
         vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
 void echo_task(void *p) {
-    
     uint64_t time = 0;
+
     while (1) {
-        xQueueReceive(xQueueTime, &time, portMAX_DELAY);
-        uint64_t start = time;
-        if (xQueueReceive(xQueueTime, &time, pdMS_TO_TICKS(100))){
-            float distance = (float)(time - start) * 0.0343 / 2;
-            xQueueSend(xQueueDist, &distance, 0);
-        } 
+        if (xQueueReceive(xQueueTime, &time, portMAX_DELAY) == pdTRUE) {
+            uint64_t start = time;
+
+            if (xQueueReceive(xQueueTime, &time, pdMS_TO_TICKS(100)) == pdTRUE) {
+                uint64_t delta = time - start;
+                float distance = (float)delta * 0.0343f / 2.0f;
+                xQueueSend(xQueueDist, &distance, 0);  // <-- FALTAVA ISSO!
+            }
+        }
     }
 }
 
 void oled_task(void *p) {
     ssd1306_t disp;
     oled_display_init(&disp);
-    ssd1306_draw_string(&disp, 0, 0, 1, "TESTE");
-    ssd1306_show(&disp);    
+    ssd1306_draw_string(&disp, 0, 0, 1, "Aguardando...");
+    ssd1306_show(&disp);
     led_rgb_init();
+
     float distance = 0;
+
     while (1) {
         if (xSemaphoreTake(xSemaphoreTrigger, portMAX_DELAY) == pdTRUE) {
             ssd1306_clear(&disp);
-            if (xQueueReceive(xQueueDist, &distance, pdMS_TO_TICKS(100))){
-                if (distance <= 100 ){
+
+            if (xQueueReceive(xQueueDist, &distance, pdMS_TO_TICKS(150)) == pdTRUE) {
+
+                if (distance <= 100) {
                     gpio_put(LED_PIN_B, 1);
                     gpio_put(LED_PIN_G, 0);
                     gpio_put(LED_PIN_R, 1);
-                } else{
+                } else {
                     gpio_put(LED_PIN_B, 1);
                     gpio_put(LED_PIN_G, 0);
                     gpio_put(LED_PIN_R, 0);
-                }    
-                int w = (int) (distance/400 *128);
-                if (w>128){w=128;}
+                }
+                int w = (int)(distance / 400 * 128);
+                if (w > 128) w = 128;
                 char buf[16];
                 snprintf(buf, sizeof(buf), "%.1f cm", distance);
                 ssd1306_draw_string(&disp, 0, 0, 2, buf);
                 ssd1306_draw_square(&disp, 0, 30, w, 10);
-            } else{
+            } else {
                 gpio_put(LED_PIN_B, 1);
                 gpio_put(LED_PIN_G, 1);
                 gpio_put(LED_PIN_R, 0);
-                char buf[16];
-                snprintf(buf, sizeof(buf), "Erro na Leitura");
-                ssd1306_draw_string(&disp, 0, 0, 2, buf);  
+                ssd1306_draw_string(&disp, 0, 0, 1, "Sem leitura");
             }
             ssd1306_show(&disp);
         }
@@ -138,6 +144,7 @@ void oled_task(void *p) {
 
 int main() {
     stdio_init_all();
+
 
     xQueueDist = xQueueCreate(32, sizeof(float));
     xQueueTime = xQueueCreate(32, sizeof(uint64_t));
@@ -148,6 +155,5 @@ int main() {
     xTaskCreate(oled_task, "Oled", 4095, NULL, 1, NULL);
 
     vTaskStartScheduler();
-
     while (true);
 }
