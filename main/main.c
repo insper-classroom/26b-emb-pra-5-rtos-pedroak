@@ -116,25 +116,33 @@ void oled_task(void *p) {
 
             if (xQueueReceive(xQueueDist, &distance, pdMS_TO_TICKS(150)) == pdTRUE) {
 
-                if (distance <= 100) {
-                    gpio_put(LED_PIN_B, 1);
-                    gpio_put(LED_PIN_G, 0);
-                    gpio_put(LED_PIN_R, 1);
-                } else {
-                    gpio_put(LED_PIN_B, 1);
-                    gpio_put(LED_PIN_G, 0);
+                if (distance > 400) {                    // fora do alcance → vermelho + falha
                     gpio_put(LED_PIN_R, 0);
+                    gpio_put(LED_PIN_G, 1);
+                    gpio_put(LED_PIN_B, 1);
+                    ssd1306_draw_string(&disp, 0, 0, 2, "FALHA");
+                    ssd1306_draw_string(&disp, 0, 20, 1, "Fora de alcance");
+                } else {
+                    if (distance <= 100) {               // verde
+                        gpio_put(LED_PIN_R, 1);
+                        gpio_put(LED_PIN_G, 0);
+                        gpio_put(LED_PIN_B, 1);
+                    } else {                             // 100 < d <= 400 → amarelo
+                        gpio_put(LED_PIN_R, 0);
+                        gpio_put(LED_PIN_G, 0);
+                        gpio_put(LED_PIN_B, 1);
+                    }
+                    int w = (int)(distance / 400 * 128);
+                    char buf[16];
+                    snprintf(buf, sizeof(buf), "%.1f cm", distance);
+                    ssd1306_draw_string(&disp, 0, 0, 2, buf);
+                    ssd1306_draw_square(&disp, 0, 30, w, 10);
                 }
-                int w = (int)(distance / 400 * 128);
-                if (w > 128) w = 128;
-                char buf[16];
-                snprintf(buf, sizeof(buf), "%.1f cm", distance);
-                ssd1306_draw_string(&disp, 0, 0, 2, buf);
-                ssd1306_draw_square(&disp, 0, 30, w, 10);
-            } else {
-                gpio_put(LED_PIN_B, 1);
-                gpio_put(LED_PIN_G, 1);
+
+            } else {                                     // timeout: sem leitura → vermelho
                 gpio_put(LED_PIN_R, 0);
+                gpio_put(LED_PIN_G, 1);
+                gpio_put(LED_PIN_B, 1);
                 ssd1306_draw_string(&disp, 0, 0, 2, "ERRO");
                 ssd1306_draw_string(&disp, 0, 20, 1, "Sem leitura");
             }
