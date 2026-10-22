@@ -135,7 +135,8 @@ void oled_task(void *p) {
                 gpio_put(LED_PIN_B, 1);
                 gpio_put(LED_PIN_G, 1);
                 gpio_put(LED_PIN_R, 0);
-                ssd1306_draw_string(&disp, 0, 0, 1, "Sem leitura");
+                ssd1306_draw_string(&disp, 0, 0, 2, "ERRO");
+                ssd1306_draw_string(&disp, 0, 20, 1, "Sem leitura");
             }
             ssd1306_show(&disp);
         }
